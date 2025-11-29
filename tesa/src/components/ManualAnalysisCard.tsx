@@ -1,7 +1,7 @@
 // src/components/ManualAnalysisCard.tsx
 import React, { useState } from 'react';
 import type { SentimentLabel } from '../types/sentiment';
-import { useSettings } from '../context/SettingsContext';
+import { useSettings, buildBackendBaseUrl } from '../context/SettingsContext';
 import {
   analyzeText,
   type ManualAnalysisResult,
@@ -19,19 +19,107 @@ const sentimentBadgeClass = (label: SentimentLabel) => {
   return 'badge badge-positive';
 };
 
+// расширяем локальный тип результата
+type ManualResultExtended = ManualAnalysisResult & {
+  lemmatized?: string;
+  entities?: string[];
+};
+
+interface LemmatizeResponse {
+  output: string;
+}
+
+interface NerResponse {
+  entities: string[];
+}
+
+const callLemmatize = async (baseUrl: string, text: string): Promise<string> => {
+  const res = await fetch(`${baseUrl}/lemmatize`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ text }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(
+      `Lemmatize error ${res.status} ${res.statusText}${body ? `: ${body}` : ''}`,
+    );
+  }
+
+  const data = (await res.json()) as LemmatizeResponse;
+  return data.output ?? text;
+};
+
+const callNer = async (baseUrl: string, text: string): Promise<string[]> => {
+  const res = await fetch(`${baseUrl}/ner`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ text }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(
+      `NER error ${res.status} ${res.statusText}${body ? `: ${body}` : ''}`,
+    );
+  }
+
+  const data = (await res.json()) as NerResponse;
+  return Array.isArray(data.entities) ? data.entities : [];
+};
+
 const ManualAnalysisCard: React.FC = () => {
   const { settings } = useSettings();
 
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState<ManualAnalysisResult[]>([]);
+  const [results, setResults] = useState<ManualResultExtended[]>([]);
+
+  const [useLemmatize, setUseLemmatize] = useState<boolean>(false);
+  const [useNer, setUseNer] = useState<boolean>(true);
 
   const handleAnalyze = async () => {
     if (!text.trim() || loading) return;
     setLoading(true);
     try {
-      const result = await analyzeText(settings, text.trim());
-      setResults((prev) => [result, ...prev].slice(0, 10));
+      const trimmed = text.trim();
+      const baseUrl = buildBackendBaseUrl(settings);
+
+      // 1. Сентимент (через /predict)
+      const sentimentResult = await analyzeText(settings, trimmed);
+
+      // 2. Дополнительно — лемматизация и NER (опционально)
+      let lemmatized: string | undefined;
+      let entities: string[] | undefined;
+
+      if (useLemmatize) {
+        try {
+          lemmatized = await callLemmatize(baseUrl, trimmed);
+        } catch (e) {
+          console.error('Lemmatize failed', e);
+        }
+      }
+
+      if (useNer) {
+        try {
+          entities = await callNer(baseUrl, trimmed);
+        } catch (e) {
+          console.error('NER failed', e);
+        }
+      }
+
+      const extended: ManualResultExtended = {
+        ...sentimentResult,
+        lemmatized,
+        entities,
+      };
+
+      setResults((prev) => [extended, ...prev].slice(0, 10));
     } catch (e: any) {
       console.error(e);
       alert(e?.message || 'Ошибка запроса к бэкенду');
@@ -66,6 +154,8 @@ const ManualAnalysisCard: React.FC = () => {
           marginTop: 8,
           marginBottom: 10,
           justifyContent: 'flex-start',
+          alignItems: 'center',
+          flexWrap: 'wrap',
         }}
       >
         <button
@@ -84,6 +174,51 @@ const ManualAnalysisCard: React.FC = () => {
         >
           Очистить
         </button>
+
+        {/* чекбоксы лемматизации и NER в одной строке с кнопками */}
+        <div
+          style={{
+            display: 'flex',
+            gap: 10,
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            marginLeft: 8,
+          }}
+        >
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 12,
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={useLemmatize}
+              onChange={(e) => setUseLemmatize(e.target.checked)}
+              style={{ width: 14, height: 14 }}
+            />
+            <span>Лемматизация</span>
+          </label>
+
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 12,
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={useNer}
+              onChange={(e) => setUseNer(e.target.checked)}
+              style={{ width: 14, height: 14 }}
+            />
+            <span>NER (сущности)</span>
+          </label>
+        </div>
       </div>
 
       <div>
@@ -101,7 +236,8 @@ const ManualAnalysisCard: React.FC = () => {
               fontSize: 12,
             }}
           >
-            После первого запроса здесь появится мини-таблица с текстом и итоговой тональностью.
+            После первого запроса здесь появится мини-таблица с текстом (или
+            лемматизированным текстом), итоговой тональностью и найденными сущностями.
           </div>
         ) : (
           <div
@@ -117,24 +253,38 @@ const ManualAnalysisCard: React.FC = () => {
             <table className="table">
               <thead>
                 <tr>
-                  <th style={{ width: 60 }}>#</th>
+                  <th style={{ width: 40 }}>#</th>
                   <th>Текст</th>
                   <th style={{ width: 210 }}>Тональность</th>
+                  <th style={{ width: 260 }}>Сущности</th>
                 </tr>
               </thead>
               <tbody>
                 {results.map((row, index) => {
                   const label = row.predictedLabel;
+                  const entities =
+                    row.entities && row.entities.length
+                      ? row.entities.join(', ')
+                      : '—';
+
+                  // если чекбокс лемматизации включён, показываем отредаченный текст,
+                  // иначе — исходный
+                  const textToShow =
+                    useLemmatize && row.lemmatized ? row.lemmatized : row.text;
+
                   return (
                     <tr key={index}>
                       <td>{results.length - index}</td>
                       <td>
-                        <div className="text-ellipsis">{row.text}</div>
+                        <div className="text-ellipsis">{textToShow}</div>
                       </td>
                       <td>
                         <div className={sentimentBadgeClass(label)}>
                           {sentimentToText(label)} ({label})
                         </div>
+                      </td>
+                      <td>
+                        <div className="text-ellipsis">{entities}</div>
                       </td>
                     </tr>
                   );

@@ -26,7 +26,6 @@ const Sidebar: React.FC = () => {
 
   const {
     rawDataset,
-    preprocessOptions,
     job,
     loading,
     loadCsvFile,
@@ -35,7 +34,6 @@ const Sidebar: React.FC = () => {
     filters,
     updateFilters,
     resetFilters,
-    setPreprocessOptions,
     applyValidationFile,
     resetValidation,
   } = useAnalysis();
@@ -255,122 +253,6 @@ const Sidebar: React.FC = () => {
                 </div>
               </div>
             )}
-          </div>
-        </div>
-
-        {/* Предобработка */}
-        <div>
-          <div className="sidebar-section-title">Предобработка</div>
-          <div className="sidebar-section">
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 13, fontWeight: 500 }}>Флаги пайплайна</div>
-            </div>
-
-            <div style={{ display: 'grid', gap: 6 }}>
-              <label
-                style={{
-                  fontSize: 13,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '6px 8px',
-                  borderRadius: 999,
-                }}
-              >
-                <span>Токенизация</span>
-                <input
-                  type="checkbox"
-                  checked={preprocessOptions.tokenization}
-                  onChange={(e) => setPreprocessOptions({ tokenization: e.target.checked })}
-                  style={{
-                    width: 16,
-                    height: 16,
-                    borderRadius: 4,
-                    border: '1px solid var(--tesa-border-strong)',
-                    background: 'transparent',
-                    boxShadow: 'none',
-                  }}
-                />
-              </label>
-
-              <label
-                style={{
-                  fontSize: 13,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '6px 8px',
-                  borderRadius: 999,
-                }}
-              >
-                <span>Лемматизация</span>
-                <input
-                  type="checkbox"
-                  checked={preprocessOptions.lemmatization}
-                  onChange={(e) => setPreprocessOptions({ lemmatization: e.target.checked })}
-                  style={{
-                    width: 16,
-                    height: 16,
-                    borderRadius: 4,
-                    border: '1px solid var(--tesa-border-strong)',
-                    background: 'transparent',
-                    boxShadow: 'none',
-                  }}
-                />
-              </label>
-
-              <label
-                style={{
-                  fontSize: 13,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '6px 8px',
-                  borderRadius: 999,
-                }}
-              >
-                <span>NER (сущности)</span>
-                <input
-                  type="checkbox"
-                  checked={preprocessOptions.ner}
-                  onChange={(e) => setPreprocessOptions({ ner: e.target.checked })}
-                  style={{
-                    width: 16,
-                    height: 16,
-                    borderRadius: 4,
-                    border: '1px solid var(--tesa-border-strong)',
-                    background: 'transparent',
-                    boxShadow: 'none',
-                  }}
-                />
-              </label>
-
-              <label
-                style={{
-                  fontSize: 13,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '6px 8px',
-                  borderRadius: 999,
-                }}
-              >
-                <span>Удаление стоп-слов</span>
-                <input
-                  type="checkbox"
-                  checked={preprocessOptions.stopwords}
-                  onChange={(e) => setPreprocessOptions({ stopwords: e.target.checked })}
-                  style={{
-                    width: 16,
-                    height: 16,
-                    borderRadius: 4,
-                    border: '1px solid var(--tesa-border-strong)',
-                    background: 'transparent',
-                    boxShadow: 'none',
-                  }}
-                />
-              </label>
-            </div>
           </div>
         </div>
 
