@@ -1,4 +1,3 @@
-// src/services/manualAnalysisMock.ts
 import { type SentimentLabel } from '../types/sentiment';
 
 export interface ManualAnalysisResult {

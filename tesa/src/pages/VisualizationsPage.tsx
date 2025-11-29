@@ -1,4 +1,3 @@
-// src/pages/VisualizationsPage.tsx
 import React, { useMemo } from 'react';
 import { useAnalysis } from '../context/AnalysisContext';
 import { useSettings } from '../context/SettingsContext';

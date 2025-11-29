@@ -1,4 +1,3 @@
-// src/pages/AnalyzePage.tsx
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAnalysis } from '../context/AnalysisContext';

@@ -1,4 +1,3 @@
-// src/pages/ResultsPage.tsx
 import React, { useMemo, useState } from 'react';
 import { useAnalysis } from '../context/AnalysisContext';
 import { useSettings } from '../context/SettingsContext';
@@ -36,7 +35,6 @@ const ResultsPage: React.FC = () => {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [modalRow, setModalRow] = useState<ReviewRow | null>(null);
 
-  // чекбоксы для экспорта финального CSV
   const [exportIncludeId, setExportIncludeId] = useState<boolean>(true);
   const [exportIncludeText, setExportIncludeText] = useState<boolean>(true);
 
@@ -118,7 +116,7 @@ const ResultsPage: React.FC = () => {
       }
     }
 
-    // ⚠️ Если ID «неровные» (из CSV) — по ID вообще не сортируем, порядок = как в файле
+    //  Если ID «неровные» (из CSV) — по ID вообще не сортируем, порядок = как в файле
     if (sortField === 'id' && !idsAreSequential) {
       return rows;
     }
@@ -217,7 +215,7 @@ const ResultsPage: React.FC = () => {
     return typeof code === 'number' ? code : concept;
   };
 
-  // 🔽 Экспорт финального CSV (ID и text — по чекбоксам, label — всегда)
+  // Экспорт финального CSV (ID или text — по чекбоксам, label — всегда)
   const handleDownloadFinalCsv = () => {
     if (!reviews.length) return;
 
@@ -440,7 +438,7 @@ const ResultsPage: React.FC = () => {
                   rowClass = equal ? 'row-match' : 'row-mismatch';
                 }
 
-                // цифра для индикатора (dataset-code), а не "сырое" 0/1/2
+                // цифра для индикатора (dataset-code)
                 const effectiveCode =
                   effectiveLabel !== undefined
                     ? getDatasetCodeForConcept(effectiveLabel)

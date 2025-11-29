@@ -1,4 +1,3 @@
-// src/components/ManualAnalysisCard.tsx
 import React, { useState } from 'react';
 import type { SentimentLabel } from '../types/sentiment';
 import { useSettings, buildBackendBaseUrl } from '../context/SettingsContext';

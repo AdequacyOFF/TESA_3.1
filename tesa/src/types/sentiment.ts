@@ -1,5 +1,3 @@
-// src/types/sentiment.ts
-
 export type SentimentLabel = 0 | 1 | 2;
 
 export interface ReviewRow {

@@ -1,4 +1,3 @@
-// src/services/sentimentApi.ts
 import type { AppSettings } from '../context/SettingsContext';
 import { buildBackendBaseUrl } from '../context/SettingsContext';
 import type {
@@ -62,7 +61,6 @@ async function callPredict(
   }
 }
 
-// ===== helpers для batch /csv =====
 
 // нормализация текста (как минимум убираем лишние пробелы)
 const normalizeText = (t: string | undefined | null): string =>
@@ -136,8 +134,6 @@ const parseCsvPredictions = (csvText: string): Map<string, SentimentLabel> => {
   return map;
 };
 
-// ===== один текст (ручной режим) остаётся через /predict =====
-
 export async function analyzeText(
   settings: AppSettings,
   text: string,
@@ -158,8 +154,6 @@ export async function analyzeText(
     createdAt: new Date().toISOString(),
   };
 }
-
-// ===== CSV анализ через /csv =====
 
 export async function analyzeRows(
   settings: AppSettings,

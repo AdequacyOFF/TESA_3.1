@@ -35,14 +35,10 @@ function simpleHeuristic(text: string): SentimentLabel {
   return 1; // нейтрально по умолчанию
 }
 
-function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+
 
 // Анализирует массив сырых строк и возвращает список ReviewRow
 export async function analyzeRows(rawRows: RawInputRow[]): Promise<ReviewRow[]> {
-  // имитация задержки «нейронки»
-  await delay(700);
 
   return rawRows.map((row, index) => {
     const predicted = simpleHeuristic(row.text);

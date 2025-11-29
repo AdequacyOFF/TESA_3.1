@@ -1,4 +1,3 @@
-// src/utils/labelMapping.ts
 import type { LabelMeaning } from '../context/SettingsContext';
 
 export type LabelCode = 0 | 1 | 2;

@@ -1,4 +1,3 @@
-// src/context/SettingsContext.tsx
 import React, {
   createContext,
   useContext,
@@ -111,7 +110,6 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({
     }
   }, [settings]);
 
-  // проставляем класс для темы на <html>
   useEffect(() => {
     const root = document.documentElement;
     root.classList.remove('tesa-theme-dark', 'tesa-theme-light');
@@ -175,7 +173,7 @@ export const useSettings = (): SettingsContextValue => {
 
 // helper для сервисов, чтобы собирать базовый URL
 export const buildBackendBaseUrl = (settings: AppSettings): string => {
-  // В проде (Netlify) ходим через прокси /api
+  // В проде ходим через прокси /api
   if (import.meta.env.PROD) {
     return '/api';
   }

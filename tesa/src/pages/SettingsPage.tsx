@@ -1,4 +1,3 @@
-// src/pages/SettingsPage.tsx
 import React, { useMemo } from 'react';
 import {
   useSettings,
@@ -64,7 +63,7 @@ const SettingsPage: React.FC = () => {
   // безопасный бэкенд (на случай старых сохранённых настроек)
   const backend = settings.backend ?? { host: '5.129.212.83', port: 51000 };
 
-  // аккуратно приводим labelMapping к нормальному виду
+  //  приводим labelMapping к нормальному виду
   const currentLabelMapping: Record<LabelCode, LabelMeaning> = useMemo(() => {
     const raw = settings.labelMapping ?? {};
     return {

@@ -1,4 +1,3 @@
-// src/components/Sidebar.tsx
 import React, { useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAnalysis } from '../context/AnalysisContext';
@@ -20,7 +19,6 @@ const Sidebar: React.FC = () => {
 
   const [dragActive, setDragActive] = useState(false);
 
-  // чекбоксы для экспорта CSV (страница results)
   const [exportIncludeId, setExportIncludeId] = useState<boolean>(true);
   const [exportIncludeText, setExportIncludeText] = useState<boolean>(true);
 
