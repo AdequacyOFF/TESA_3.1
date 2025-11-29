@@ -1,0 +1,65 @@
+<svg
+  width="512"
+  height="512"
+  viewBox="0 0 512 512"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <defs>
+    <!-- Неоновый градиент -->
+    <linearGradient id="neon-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22d3ee" />
+      <stop offset="50%" stop-color="#6366f1" />
+      <stop offset="100%" stop-color="#a855f7" />
+    </linearGradient>
+
+    <!-- Свечение -->
+    <filter id="neon-glow">
+      <feGaussianBlur stdDeviation="10" result="blur" />
+      <feColorMatrix
+        in="blur"
+        type="matrix"
+        values="0 0 0 0 0.2
+                0 0 0 0 0.7
+                0 0 0 0 1
+                0 0 0 0.9 0"
+      />
+      <feMerge>
+        <feMergeNode />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Мягкий круг под буквой (только обводка, фон прозрачный) -->
+  <circle
+    cx="256"
+    cy="256"
+    r="180"
+    fill="none"
+    stroke="url(#neon-grad)"
+    stroke-width="10"
+    opacity="0.9"
+  />
+
+  <!-- Неоновая буква T -->
+  <g transform="translate(256 256)" filter="url(#neon-glow)">
+    <!-- Верхняя перекладина -->
+    <rect
+      x="-110"
+      y="-80"
+      width="220"
+      height="40"
+      rx="18"
+      fill="url(#neon-grad)"
+    />
+    <!-- Ножка -->
+    <rect
+      x="-32"
+      y="-40"
+      width="64"
+      height="150"
+      rx="18"
+      fill="url(#neon-grad)"
+    />
+  </g>
+</svg>
