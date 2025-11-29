@@ -8,7 +8,8 @@ import {
   type SentimentLabel,
 } from '../types/sentiment';
 import { parseInputCsv, parseValidationCsv } from '../services/csvUtils';
-import { analyzeRows } from '../services/mockApi';
+import { analyzeRows } from '../services/sentimentApi';
+import { useSettings } from './SettingsContext';
 
 interface RawDatasetInfo {
   fileName: string;
@@ -43,10 +44,14 @@ interface AnalysisContextValue {
   resetFilters: () => void;
 
   updateCorrectedLabel: (id: string, label?: SentimentLabel) => void;
+
   applyValidationFile: (file: File) => Promise<void>;
+  resetValidation: () => Promise<void>;
 }
 
-const AnalysisContext = createContext<AnalysisContextValue | undefined>(undefined);
+const AnalysisContext = createContext<AnalysisContextValue | undefined>(
+  undefined,
+);
 
 export const useAnalysis = (): AnalysisContextValue => {
   const ctx = useContext(AnalysisContext);
@@ -73,7 +78,9 @@ const defaultFilters: ResultsFilters = {
 
 const normalizeText = (t: string): string => t.replace(/\s+/g, ' ').trim();
 
-export const AnalysisProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AnalysisProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [rawDataset, setRawDataset] = useState<RawDatasetInfo | null>(null);
   const [rawRows, setRawRows] = useState<RawInputRow[]>([]);
   const [reviews, setReviews] = useState<ReviewRow[]>([]);
@@ -82,6 +89,8 @@ export const AnalysisProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     useState<PreprocessOptions>(defaultPreprocess);
   const [filters, setFilters] = useState<ResultsFilters>(defaultFilters);
   const [loading, setLoading] = useState(false);
+
+  const { settings } = useSettings();
 
   const setPreprocessOptions = (patch: Partial<PreprocessOptions>) => {
     setPreprocessOptionsState((prev) => ({ ...prev, ...patch }));
@@ -110,6 +119,7 @@ export const AnalysisProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         previewRows: rows.slice(0, 10),
       });
 
+      // сбрасываем старые результаты и валидацию
       setReviews([]);
       setJob(null);
       resetFilters();
@@ -140,8 +150,8 @@ export const AnalysisProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     setLoading(true);
     try {
-      // вызываем "нейронку" (mockApi) для предсказания тональности
-      const analyzedBase = await analyzeRows(rawRows);
+      // вызываем реальный бэкенд через sentimentApi
+      const analyzedBase = await analyzeRows(settings, rawRows);
 
       // если во входном CSV была колонка label, прокидываем её в trueLabel
       const analyzedWithTrue = analyzedBase.map((row, idx) => {
@@ -203,34 +213,107 @@ export const AnalysisProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     );
   };
 
+  /**
+   * Загрузка валидационного CSV:
+   * - обязательна колонка label / trueLabel
+   * - ID и text — опциональны
+   * При сопоставлении приоритет:
+   *   1) ID
+   *   2) text (нормализованный)
+   *   3) номер строки (индекс)
+   */
   const applyValidationFile = async (file: File): Promise<void> => {
     setLoading(true);
     try {
-      const validationRows = await parseValidationCsv(file);
+      const validationRows: any[] = await parseValidationCsv(file);
 
-      const textToTrueLabel = new Map<string, SentimentLabel>();
-      validationRows.forEach((r: { text: string; trueLabel: SentimentLabel }) => {
-        const key = normalizeText(r.text);
-        textToTrueLabel.set(key, r.trueLabel);
+      const idToTrue = new Map<string, SentimentLabel>();
+      const textToTrue = new Map<string, SentimentLabel>();
+      const indexToTrue = new Map<number, SentimentLabel>();
+
+      validationRows.forEach((r, idx) => {
+        const trueLabel =
+          (r.trueLabel as SentimentLabel | undefined) ??
+          (r.label as SentimentLabel | undefined);
+
+        if (trueLabel === undefined) return;
+
+        // ID: поддерживаем ID / id
+        const rawId = (r as any).ID ?? (r as any).id;
+        if (rawId !== undefined && rawId !== null && rawId !== '') {
+          idToTrue.set(String(rawId), trueLabel);
+        }
+
+        // text (если есть)
+        if (typeof r.text === 'string' && r.text.trim().length > 0) {
+          const key = normalizeText(r.text);
+          textToTrue.set(key, trueLabel);
+        }
+
+        // fallback — по индексу строки
+        indexToTrue.set(idx, trueLabel);
       });
 
       setReviews((prev) =>
-        prev.map((row) => {
+        prev.map((row, idx) => {
+          // 1) пробуем по ID
+          const rowRawId = (row as any).ID ?? row.id;
+          if (
+            rowRawId !== undefined &&
+            rowRawId !== null &&
+            rowRawId !== '' &&
+            idToTrue.has(String(rowRawId))
+          ) {
+            return {
+              ...row,
+              trueLabel: idToTrue.get(String(rowRawId))!,
+            };
+          }
+
+          // 2) пробуем по тексту
           const key = normalizeText(row.text);
-          const trueLabel = textToTrueLabel.get(key);
-          if (trueLabel === undefined) return row;
-          return {
-            ...row,
-            trueLabel,
-          };
+          if (textToTrue.has(key)) {
+            return {
+              ...row,
+              trueLabel: textToTrue.get(key)!,
+            };
+          }
+
+          // 3) fallback — по индексу строки
+          if (indexToTrue.has(idx)) {
+            return {
+              ...row,
+              trueLabel: indexToTrue.get(idx)!,
+            };
+          }
+
+          // если ничего не нашли — оставляем как было
+          return row;
         }),
       );
     } catch (e) {
       console.error(e);
-      alert('Ошибка при чтении CSV с эталонной разметкой. Нужны колонки text,label.');
+      alert(
+        'Ошибка при чтении CSV с эталонной разметкой. Нужна колонка label (ID и text — опционально).',
+      );
     } finally {
       setLoading(false);
     }
+  };
+
+  /**
+   * Полный сброс валидации:
+   * - trueLabel у всех отзывов становится undefined
+   * - подсветка на ResultsPage пропадает
+   * - метрики и confusion matrix на MetricsPage обнуляются
+   */
+  const resetValidation = async (): Promise<void> => {
+    setReviews((prev) =>
+      prev.map((row) => ({
+        ...row,
+        trueLabel: undefined,
+      })),
+    );
   };
 
   const value: AnalysisContextValue = {
@@ -248,7 +331,12 @@ export const AnalysisProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     resetFilters,
     updateCorrectedLabel,
     applyValidationFile,
+    resetValidation,
   };
 
-  return <AnalysisContext.Provider value={value}>{children}</AnalysisContext.Provider>;
+  return (
+    <AnalysisContext.Provider value={value}>
+      {children}
+    </AnalysisContext.Provider>
+  );
 };

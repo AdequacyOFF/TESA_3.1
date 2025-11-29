@@ -7,9 +7,9 @@ import {
   normalizeLabelMapping,
   areLabelsEqualByConcept,
   conceptLabelToDatasetCode,
-  modelCodeToConceptLabel,
   datasetCodeToConceptLabel,
 } from '../utils/labelMapping';
+import { exportResultsCsv } from '../services/csvUtils';
 
 // сортируем по id, src или эффективной метке
 type SortField = 'id' | 'src' | 'label';
@@ -36,10 +36,46 @@ const ResultsPage: React.FC = () => {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [modalRow, setModalRow] = useState<ReviewRow | null>(null);
 
+  // чекбоксы для экспорта финального CSV
+  const [exportIncludeId, setExportIncludeId] = useState<boolean>(true);
+  const [exportIncludeText, setExportIncludeText] = useState<boolean>(true);
+
   const normalizedLabelMapping = useMemo(
     () => normalizeLabelMapping(settings.labelMapping),
     [settings.labelMapping],
   );
+
+  // проверяем, являются ли ID «нашими» локальными (1..N без дырок)
+  const idsAreSequential = useMemo(() => {
+    if (!reviews.length) return false;
+
+    const nums: number[] = [];
+
+    for (const row of reviews) {
+      const rawId = (row as any).ID ?? row.id;
+      if (
+        rawId === undefined ||
+        rawId === null ||
+        rawId === '' ||
+        Number.isNaN(Number(rawId))
+      ) {
+        return false;
+      }
+      nums.push(Number(rawId));
+    }
+
+    // уникальные и подряд 1..N
+    const sorted = [...nums].sort((a, b) => a - b);
+    if (sorted.length !== new Set(sorted).size) return false;
+
+    for (let i = 0; i < sorted.length; i++) {
+      if (sorted[i] !== i + 1) {
+        return false;
+      }
+    }
+
+    return true;
+  }, [reviews]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -82,14 +118,42 @@ const ResultsPage: React.FC = () => {
       }
     }
 
-    // Сортировка
+    // ⚠️ Если ID «неровные» (из CSV) — по ID вообще не сортируем, порядок = как в файле
+    if (sortField === 'id' && !idsAreSequential) {
+      return rows;
+    }
+
+    // Сортировка (по ID, src или label)
     rows.sort((a, b) => {
       let av: any;
       let bv: any;
 
       if (sortField === 'id') {
-        av = Number(a.id);
-        bv = Number(b.id);
+        const aRawId = (a as any).ID ?? a.id;
+        const bRawId = (b as any).ID ?? b.id;
+
+        const aNum =
+          aRawId !== undefined &&
+          aRawId !== null &&
+          aRawId !== '' &&
+          !Number.isNaN(Number(aRawId))
+            ? Number(aRawId)
+            : NaN;
+        const bNum =
+          bRawId !== undefined &&
+          bRawId !== null &&
+          bRawId !== '' &&
+          !Number.isNaN(Number(bRawId))
+            ? Number(bRawId)
+            : NaN;
+
+        if (!Number.isNaN(aNum) && !Number.isNaN(bNum)) {
+          av = aNum;
+          bv = bNum;
+        } else {
+          av = String(aRawId ?? '');
+          bv = String(bRawId ?? '');
+        }
       } else if (sortField === 'src') {
         av = a.src ?? '';
         bv = b.src ?? '';
@@ -107,7 +171,7 @@ const ResultsPage: React.FC = () => {
     });
 
     return rows;
-  }, [reviews, filters, sortField, sortDir]);
+  }, [reviews, filters, sortField, sortDir, idsAreSequential]);
 
   const correctedCount = useMemo(
     () => reviews.filter((r) => r.correctedLabel !== undefined).length,
@@ -117,7 +181,10 @@ const ResultsPage: React.FC = () => {
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, totalPages);
 
-  const paged = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const paged = filtered.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
+  );
 
   const handleLabelChange = (id: string, value: string) => {
     if (value === '') {
@@ -140,49 +207,24 @@ const ResultsPage: React.FC = () => {
   };
 
   // helper: получить "цифру" для концептуального класса с учётом mapping
-  const getDatasetCodeForConcept = (concept: SentimentLabel): number | SentimentLabel => {
-    const code = conceptLabelToDatasetCode(concept as any, normalizedLabelMapping);
+  const getDatasetCodeForConcept = (
+    concept: SentimentLabel,
+  ): number | SentimentLabel => {
+    const code = conceptLabelToDatasetCode(
+      concept as any,
+      normalizedLabelMapping,
+    );
     return typeof code === 'number' ? code : concept;
   };
 
-  // 🔽 ВАЖНО: экспорт только 2 колонок text,label с итоговым результатом анализа,
-  // ПЕРЕПИСАННЫМ под кодировку датасета (mapping).
+  // 🔽 Экспорт финального CSV (ID и text — по чекбоксам, label — всегда)
   const handleDownloadFinalCsv = () => {
     if (!reviews.length) return;
 
-    const header = 'text,label';
-    const lines: string[] = [header];
-
-    reviews.forEach((row) => {
-      const baseFinal = row.correctedLabel ?? row.predictedLabel;
-
-      let labelValue = '';
-      if (baseFinal === 0 || baseFinal === 1 || baseFinal === 2) {
-        // baseFinal — концептуальная метка (0=neg,1=neu,2=pos)
-        const concept = modelCodeToConceptLabel(baseFinal);
-        const datasetCode =
-          concept != null
-            ? conceptLabelToDatasetCode(concept, normalizedLabelMapping)
-            : baseFinal;
-        labelValue = String(datasetCode);
-      }
-
-      // экранируем кавычки и оборачиваем текст в "
-      const safeText = '"' + (row.text ?? '').replace(/"/g, '""') + '"';
-
-      lines.push(`${safeText},${labelValue}`);
+    exportResultsCsv(reviews, settings.labelMapping, {
+      includeId: exportIncludeId,
+      includeText: exportIncludeText,
     });
-
-    const csvContent = lines.join('\n');
-    const blob = new Blob([csvContent], {
-      type: 'text/csv;charset=utf-8;',
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'tesa_results_final.csv';
-    a.click();
-    URL.revokeObjectURL(url);
   };
 
   return (
@@ -190,9 +232,10 @@ const ResultsPage: React.FC = () => {
       <div style={{ marginBottom: 10 }}>
         <div className="page-header-title">Результаты и разметка</div>
         <div className="page-header-subtitle">
-          Таблица с тональностью по каждому тексту. Ручные исправления полностью заменяют исходный
-          результат анализа. При выгрузке CSV остаются только текст и итоговая метка, переписанная
-          под кодировку вашего датасета.
+          Таблица с тональностью по каждому тексту. Ручные исправления полностью
+          заменяют исходный результат анализа. При выгрузке финального CSV
+          всегда сохраняется итоговая метка <code>label</code>, а колонки{' '}
+          <code>ID</code> и <code>text</code> — по выбору.
         </div>
       </div>
 
@@ -216,28 +259,84 @@ const ResultsPage: React.FC = () => {
           }}
         >
           <div>
-            <div style={{ fontSize: 13, fontWeight: 500 }}>Сводка по разметке</div>
-            <div className="text-muted" style={{ fontSize: 11 }}>
-              Состояние датасета после применения фильтров слева.
+            <div style={{ fontSize: 13, fontWeight: 500 }}>
+              Сводка по разметке
             </div>
           </div>
 
-          <button
-            className="btn"
-            type="button"
-            onClick={handleDownloadFinalCsv}
-            disabled={!reviews.length}
+          <div
             style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              whiteSpace: 'nowrap',
-              fontSize: 12,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'flex-end',
+              gap: 4,
             }}
           >
-            <span>⬇︎</span>
-            <span>Скачать финальный CSV</span>
-          </button>
+            <button
+              className="btn"
+              type="button"
+              onClick={handleDownloadFinalCsv}
+              disabled={!reviews.length}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                whiteSpace: 'nowrap',
+                fontSize: 12,
+              }}
+            >
+              <span>⬇︎</span>
+              <span>Скачать финальный CSV</span>
+            </button>
+
+            {/* чекбоксы сразу под кнопкой, в одну строку */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                fontSize: 11,
+              }}
+            >
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  cursor: 'pointer',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={exportIncludeId}
+                  onChange={(e) => setExportIncludeId(e.target.checked)}
+                  style={{ width: 13, height: 13 }}
+                />
+                <span>ID</span>
+              </label>
+
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  cursor: 'pointer',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={exportIncludeText}
+                  onChange={(e) => setExportIncludeText(e.target.checked)}
+                  style={{ width: 13, height: 13 }}
+                />
+                <span>text</span>
+              </label>
+
+              <span className="text-muted" style={{ fontSize: 10 }}>
+                label всегда включён
+              </span>
+            </div>
+          </div>
         </div>
 
         <div
@@ -248,24 +347,39 @@ const ResultsPage: React.FC = () => {
           }}
         >
           <div>
-            <div className="text-muted" style={{ fontSize: 11, marginBottom: 2 }}>
+            <div
+              className="text-muted"
+              style={{ fontSize: 11, marginBottom: 2 }}
+            >
               Всего строк
             </div>
-            <div style={{ fontSize: 13, fontWeight: 500 }}>{reviews.length}</div>
+            <div style={{ fontSize: 13, fontWeight: 500 }}>
+              {reviews.length}
+            </div>
           </div>
 
           <div>
-            <div className="text-muted" style={{ fontSize: 11, marginBottom: 2 }}>
+            <div
+              className="text-muted"
+              style={{ fontSize: 11, marginBottom: 2 }}
+            >
               После фильтров
             </div>
-            <div style={{ fontSize: 13, fontWeight: 500 }}>{filtered.length}</div>
+            <div style={{ fontSize: 13, fontWeight: 500 }}>
+              {filtered.length}
+            </div>
           </div>
 
           <div>
-            <div className="text-muted" style={{ fontSize: 11, marginBottom: 2 }}>
+            <div
+              className="text-muted"
+              style={{ fontSize: 11, marginBottom: 2 }}
+            >
               Исправлено вручную
             </div>
-            <div style={{ fontSize: 13, fontWeight: 500 }}>{correctedCount}</div>
+            <div style={{ fontSize: 13, fontWeight: 500 }}>
+              {correctedCount}
+            </div>
           </div>
         </div>
       </section>
@@ -276,7 +390,10 @@ const ResultsPage: React.FC = () => {
           <table className="table">
             <thead>
               <tr>
-                <th style={{ width: 60, cursor: 'pointer' }} onClick={() => handleSort('id')}>
+                <th
+                  style={{ width: 60, cursor: 'pointer' }}
+                  onClick={() => handleSort('id')}
+                >
                   ID
                   {renderSortIndicator('id')}
                 </th>
@@ -302,17 +419,16 @@ const ResultsPage: React.FC = () => {
                 <tr>
                   <td colSpan={4}>
                     <span className="text-muted">
-                      Нет строк, подходящих под текущие фильтры / поиск. Попробуйте сбросить
-                      фильтры слева.
+                      Нет строк, подходящих под текущие фильтры / поиск.
+                      Попробуйте сбросить фильтры слева.
                     </span>
                   </td>
                 </tr>
               )}
 
-              {paged.map((row) => {
-                const effectiveLabel = (row.correctedLabel ?? row.predictedLabel) as
-                  | SentimentLabel
-                  | undefined;
+              {paged.map((row, idx) => {
+                const effectiveLabel = (row.correctedLabel ??
+                  row.predictedLabel) as SentimentLabel | undefined;
 
                 let rowClass = '';
                 if (row.trueLabel !== undefined && effectiveLabel !== undefined) {
@@ -330,9 +446,22 @@ const ResultsPage: React.FC = () => {
                     ? getDatasetCodeForConcept(effectiveLabel)
                     : undefined;
 
+                // ID: сначала берем из поля ID (как в CSV), потом из id, потом фолбэк порядковый
+                const rawId = (row as any).ID ?? row.id;
+                const fallbackDisplayId =
+                  (currentPage - 1) * pageSize + idx + 1;
+                const displayId =
+                  rawId !== undefined && rawId !== null && rawId !== ''
+                    ? String(rawId)
+                    : String(fallbackDisplayId);
+
                 return (
-                  <tr key={row.id} className={rowClass} style={{ cursor: 'pointer' }}>
-                    <td onClick={() => setModalRow(row)}>{row.id}</td>
+                  <tr
+                    key={rawId ?? `row-${fallbackDisplayId}`}
+                    className={rowClass}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <td onClick={() => setModalRow(row)}>{displayId}</td>
                     <td onClick={() => setModalRow(row)}>
                       <div className="text-ellipsis">{row.text}</div>
                     </td>
@@ -349,17 +478,29 @@ const ResultsPage: React.FC = () => {
                             {sentimentToText(effectiveLabel)} ({effectiveCode})
                           </div>
                         ) : (
-                          <span className="text-muted">нет предсказания</span>
+                          <span className="text-muted">
+                            нет предсказания
+                          </span>
                         )}
                       </div>
 
                       {/* стеклянный селект для исправления */}
-                      <div className="select-control" style={{ marginTop: 2 }}>
+                      <div
+                        className="select-control"
+                        style={{ marginTop: 2 }}
+                      >
                         <select
                           value={
-                            row.correctedLabel !== undefined ? String(row.correctedLabel) : ''
+                            row.correctedLabel !== undefined
+                              ? String(row.correctedLabel)
+                              : ''
                           }
-                          onChange={(e) => handleLabelChange(row.id, e.target.value)}
+                          onChange={(e) =>
+                            handleLabelChange(
+                              String(rawId ?? fallbackDisplayId),
+                              e.target.value,
+                            )
+                          }
                         >
                           <option value="">— оставить как есть</option>
                           <option value="0">
@@ -375,7 +516,10 @@ const ResultsPage: React.FC = () => {
                       </div>
 
                       {row.correctedLabel !== undefined && (
-                        <div className="text-muted" style={{ marginTop: 2, fontSize: 11 }}>
+                        <div
+                          className="text-muted"
+                          style={{ marginTop: 2, fontSize: 11 }}
+                        >
                           исправлено вручную
                         </div>
                       )}
@@ -395,10 +539,16 @@ const ResultsPage: React.FC = () => {
             </span>
           </div>
           <div className="table-footer-right" style={{ gap: 6 }}>
-            <div className="text-muted" style={{ fontSize: 11, marginRight: 4 }}>
+            <div
+              className="text-muted"
+              style={{ fontSize: 11, marginRight: 4 }}
+            >
               На странице:
             </div>
-            <div className="select-control" style={{ width: 120, marginRight: 6 }}>
+            <div
+              className="select-control"
+              style={{ width: 120, marginRight: 6 }}
+            >
               <select
                 value={pageSize}
                 onChange={(e) => {
@@ -426,7 +576,9 @@ const ResultsPage: React.FC = () => {
             <button
               className="btn-secondary btn btn-sm"
               type="button"
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              onClick={() =>
+                setPage((p) => Math.min(totalPages, p + 1))
+              }
               disabled={currentPage === totalPages}
             >
               ›
@@ -437,28 +589,40 @@ const ResultsPage: React.FC = () => {
 
       {/* Модалка с полным текстом и редактированием */}
       {modalRow && (
-        <div className="modal-overlay" onClick={() => setModalRow(null)}>
-          <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="modal-overlay"
+          onClick={() => setModalRow(null)}
+        >
+          <div
+            className="modal-dialog"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3>Полный текст отзыва</h3>
             <div className="modal-meta">
               <div>
-                ID: <strong>{modalRow.id}</strong>
+                ID:{' '}
+                <strong>
+                  {(modalRow as any).ID ?? modalRow.id ?? '—'}
+                </strong>
               </div>
               <div>
                 Источник:{' '}
                 <strong>
-                  {modalRow.src ?? <span className="text-muted">не указан</span>}
+                  {modalRow.src ?? (
+                    <span className="text-muted">не указан</span>
+                  )}
                 </strong>
               </div>
             </div>
             <div className="modal-text">{modalRow.text}</div>
 
             <div style={{ marginTop: 12 }}>
-              <div style={{ fontSize: 13, marginBottom: 4 }}>Текущая тональность:</div>
+              <div style={{ fontSize: 13, marginBottom: 4 }}>
+                Текущая тональность:
+              </div>
               {(() => {
-                const eff = (modalRow.correctedLabel ?? modalRow.predictedLabel) as
-                  | SentimentLabel
-                  | undefined;
+                const eff = (modalRow.correctedLabel ??
+                  modalRow.predictedLabel) as SentimentLabel | undefined;
                 const effCode =
                   eff !== undefined ? getDatasetCodeForConcept(eff) : undefined;
                 return eff !== undefined ? (
@@ -472,14 +636,21 @@ const ResultsPage: React.FC = () => {
             </div>
 
             <div style={{ marginTop: 12 }}>
-              <div style={{ fontSize: 13, marginBottom: 4 }}>Исправить тональность:</div>
+              <div style={{ fontSize: 13, marginBottom: 4 }}>
+                Исправить тональность:
+              </div>
               <div className="select-control">
                 <select
                   value={
-                    modalRow.correctedLabel !== undefined ? String(modalRow.correctedLabel) : ''
+                    modalRow.correctedLabel !== undefined
+                      ? String(modalRow.correctedLabel)
+                      : ''
                   }
                   onChange={(e) => {
-                    handleLabelChange(modalRow.id, e.target.value);
+                    const modalRawId =
+                      (modalRow as any).ID ?? modalRow.id ?? '';
+                    handleLabelChange(String(modalRawId), e.target.value);
+
                     const val = e.target.value;
                     let updated = modalRow;
                     if (val === '') {
@@ -487,7 +658,10 @@ const ResultsPage: React.FC = () => {
                     } else {
                       const num = Number(val);
                       if (num === 0 || num === 1 || num === 2) {
-                        updated = { ...modalRow, correctedLabel: num as SentimentLabel };
+                        updated = {
+                          ...modalRow,
+                          correctedLabel: num as SentimentLabel,
+                        };
                       }
                     }
                     setModalRow(updated);
@@ -521,7 +695,10 @@ const ResultsPage: React.FC = () => {
                     }
                     return (
                       <>
-                        {sentimentToText(trueConcept as SentimentLabel)} ({modalRow.trueLabel})
+                        {sentimentToText(
+                          trueConcept as SentimentLabel,
+                        )}{' '}
+                        ({modalRow.trueLabel})
                       </>
                     );
                   })()}
@@ -529,8 +706,14 @@ const ResultsPage: React.FC = () => {
               </div>
             )}
 
-            <div style={{ marginTop: 16, textAlign: 'right' }}>
-              <button className="btn-secondary btn" type="button" onClick={() => setModalRow(null)}>
+            <div
+              style={{ marginTop: 16, textAlign: 'right' }}
+            >
+              <button
+                className="btn-secondary btn"
+                type="button"
+                onClick={() => setModalRow(null)}
+              >
                 Закрыть
               </button>
             </div>

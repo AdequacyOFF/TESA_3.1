@@ -20,6 +20,10 @@ const Sidebar: React.FC = () => {
 
   const [dragActive, setDragActive] = useState(false);
 
+  // чекбоксы для экспорта CSV (страница results)
+  const [exportIncludeId, setExportIncludeId] = useState<boolean>(true);
+  const [exportIncludeText, setExportIncludeText] = useState<boolean>(true);
+
   const {
     rawDataset,
     preprocessOptions,
@@ -33,6 +37,7 @@ const Sidebar: React.FC = () => {
     resetFilters,
     setPreprocessOptions,
     applyValidationFile,
+    resetValidation,
   } = useAnalysis();
 
   const { settings } = useSettings();
@@ -117,10 +122,16 @@ const Sidebar: React.FC = () => {
     return `${codeToShow} · положительные`;
   };
 
+  const handleRunAnalysisClick = async () => {
+    // при новом запуске анализа сбрасываем валидацию/метрики
+    await resetValidation();
+    await runAnalysis();
+  };
+
   /* ====== ВЕТКА /analyze ====== */
   if (isAnalyzePage) {
     return (
-      <aside className="sidebar">
+      <aside className="sidebar" style={{ height: '92vh', overflow: 'auto' }}>
         {/* Загрузка данных */}
         <div>
           <div className="sidebar-section-title">Загрузка данных</div>
@@ -154,10 +165,6 @@ const Sidebar: React.FC = () => {
                 </div>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 500 }}>Файл с отзывами</div>
-                  <div className="text-muted" style={{ fontSize: 11 }}>
-                    Колонка <code>text</code> обязательна, <code>src</code> и <code>label</code> —
-                    опционально.
-                  </div>
                 </div>
               </div>
 
@@ -374,7 +381,7 @@ const Sidebar: React.FC = () => {
             <button
               className="btn"
               type="button"
-              onClick={runAnalysis}
+              onClick={handleRunAnalysisClick}
               disabled={loading || !rawDataset}
               style={{ width: '100%', justifyContent: 'center', gap: 8 }}
             >
@@ -430,7 +437,7 @@ const Sidebar: React.FC = () => {
   /* ====== ВЕТКА /results ====== */
   if (isResultsPage) {
     return (
-      <aside className="sidebar">
+      <aside className="sidebar" style={{ height: '92vh', overflow: 'auto' }}>
         {/* Блок 1: Фильтры разметки */}
         <div>
           <div className="sidebar-section-title">Фильтры разметки</div>
@@ -446,8 +453,7 @@ const Sidebar: React.FC = () => {
                 }}
               >
                 <span style={{ fontSize: 13, fontWeight: 500 }}>Тональность</span>
-                <span className="text-muted" style={{ fontSize: 11 }}>
-                </span>
+                <span className="text-muted" style={{ fontSize: 11 }} />
               </div>
 
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -630,12 +636,65 @@ const Sidebar: React.FC = () => {
             <button
               className="btn"
               type="button"
-              onClick={() => exportResultsCsv(reviews, settings.labelMapping)}
+              onClick={() =>
+                exportResultsCsv(reviews, settings.labelMapping, {
+                  includeId: exportIncludeId,
+                  includeText: exportIncludeText,
+                })
+              }
               disabled={!reviews.length}
-              style={{ width: '100%', marginBottom: 8, justifyContent: 'center', fontSize: 13 }}
+              style={{ width: '100%', marginBottom: 6, justifyContent: 'center', fontSize: 13 }}
             >
               Скачать CSV
             </button>
+
+            {/* чекбоксы в одну строку */}
+            <div
+              style={{
+                marginBottom: 6,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                fontSize: 12,
+                flexWrap: 'wrap',
+              }}
+            >
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={exportIncludeId}
+                  onChange={(e) => setExportIncludeId(e.target.checked)}
+                  style={{ width: 14, height: 14 }}
+                />
+                <span>ID</span>
+              </label>
+
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={exportIncludeText}
+                  onChange={(e) => setExportIncludeText(e.target.checked)}
+                  style={{ width: 14, height: 14 }}
+                />
+                <span>text</span>
+              </label>
+            </div>
+
+            <div className="text-muted" style={{ fontSize: 11, marginBottom: 8 }}>
+              В файле всегда будет колонка <code>label</code>. ID и text — по выбору.
+            </div>
 
             <button
               className="btn-secondary btn"
@@ -652,12 +711,6 @@ const Sidebar: React.FC = () => {
               style={{ display: 'none' }}
               onChange={handleValidationChange}
             />
-
-            <p className="text-muted" style={{ marginTop: 8, fontSize: 11 }}>
-              При наличии колонок <code>text</code> и <code>label</code> строки сопоставляются по
-              тексту. Совпадения и расхождения считаются по смыслу классов с учётом настроенной
-              матрицы сопоставления.
-            </p>
           </div>
         </div>
       </aside>
@@ -667,7 +720,7 @@ const Sidebar: React.FC = () => {
   /* ====== ДЛЯ ОСТАЛЬНЫХ ВКЛАДОК ====== */
 
   return (
-    <aside className="sidebar">
+    <aside className="sidebar" style={{ height: '92vh', overflow: 'auto' }}>
       <div>
         <div className="sidebar-section-title">Навигация</div>
         <div className="sidebar-section">

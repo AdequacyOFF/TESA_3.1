@@ -9,7 +9,7 @@ const formatNumber = (value: number | undefined) =>
   value !== undefined ? value.toFixed(3) : '0.000';
 
 const MetricsPage: React.FC = () => {
-  const { reviews, applyValidationFile } = useAnalysis();
+  const { reviews, applyValidationFile, resetValidation } = useAnalysis();
   const { settings } = useSettings();
 
   const [loadingLocal, setLoadingLocal] = useState(false);
@@ -109,6 +109,17 @@ const MetricsPage: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  // новый нормальный ресет — чистим trueLabel через контекст
+  const handleResetValidation = async () => {
+    setLoadingLocal(true);
+    try {
+      setLastFileName(null);
+      await resetValidation();
+    } finally {
+      setLoadingLocal(false);
+    }
+  };
+
   const confusionMatrix: number[][] =
     metrics?.confusionMatrix ?? [
       [0, 0, 0],
@@ -161,7 +172,8 @@ const MetricsPage: React.FC = () => {
       <div style={{ marginBottom: 10 }}>
         <div className="page-header-title">Оценка качества (macro-F1)</div>
         <div className="page-header-subtitle">
-          Загрузите валидационный CSV с истинными метками (<code>text</code>, <code>label</code>), и
+          Загрузите валидационный CSV с истинными метками{' '}
+          (<code>label</code> обязательно, <code>ID</code> и <code>text</code> — опционально), и
           TESA посчитает macro-F1, метрики по классам и confusion matrix для текущих предсказаний.
           Интерпретация кодов меток берётся из настроек сопоставления классов.
         </div>
@@ -171,9 +183,9 @@ const MetricsPage: React.FC = () => {
       <section className="chart-card" style={{ marginTop: 6 }}>
         <h3>1. Эталонная разметка</h3>
         <p className="chart-description">
-          Формат файла: минимум две колонки <code>text</code> и <code>label</code> (0 — отрицательная,
-          1 — нейтральная, 2 — положительная в терминах модели). В настройках можно задать, как
-          именно эти коды соответствуют классам в вашем валидационном датасете.
+          Формат файла: обязательная колонка <code>label</code>. Дополнительно можно добавить{' '}
+          <code>ID</code> и/или <code>text</code>. Если есть <code>ID</code>, строки сопоставляются
+          по нему, если нет — по <code>text</code>, если нет и его — по порядку строк.
         </p>
 
         <div
@@ -194,8 +206,8 @@ const MetricsPage: React.FC = () => {
             style={{ margin: 0 }}
           >
             <div style={{ fontSize: 13, marginBottom: 4 }}>
-              Перетащите сюда файл <strong>.csv</strong> с колонками <code>text</code> и{' '}
-              <code>label</code>
+              Перетащите сюда файл <strong>.csv</strong> с колонкой <code>label</code>{' '}
+              (колонки <code>ID</code> и <code>text</code> могут быть, но не обязательны)
             </div>
             <div className="text-muted" style={{ marginBottom: 8 }}>
               Для расчёта метрик нужны и предсказанные моделью метки, и истинные метки эксперта.
@@ -267,6 +279,35 @@ const MetricsPage: React.FC = () => {
               <div className="chip chip-sm">
                 Есть trueLabel: {matchedCount || 0}
               </div>
+            </div>
+
+            {/* заметная кнопка сброса */}
+            <div
+              style={{
+                marginTop: 8,
+                display: 'flex',
+                gap: 8,
+                flexWrap: 'wrap',
+              }}
+            >
+              <button
+                className="btn btn-sm"
+                type="button"
+                onClick={handleResetValidation}
+                disabled={loadingLocal || (!lastFileName && !matchedCount)}
+                style={{
+                  fontSize: 11,
+                  paddingInline: 12,
+                  width: '100%',
+                  justifyContent: 'center',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <span>⟲</span>
+                <span>Сбросить валидацию</span>
+              </button>
             </div>
 
             {!reviews.length && (

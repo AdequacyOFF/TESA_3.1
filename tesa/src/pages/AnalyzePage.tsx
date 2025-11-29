@@ -233,8 +233,8 @@ const AnalyzePage: React.FC = () => {
                 title: 'Загрузите CSV',
                 text: (
                   <>
-                    В левой панели выберите CSV с колонкой <code>text</code>. Опционально:
-                    <code>src</code> и <code>label</code>.
+                    В левой панели выберите CSV с колонкой <code>text</code>. Опционально:{' '}
+                    <code>src</code>, <code>label</code> и <code>id</code>.
                   </>
                 ),
               },
@@ -301,11 +301,6 @@ const AnalyzePage: React.FC = () => {
           {/* Превью CSV */}
           <section className="chart-card">
             <h3>Превью данных</h3>
-            <p className="chart-description">
-              Показаны первые {rawDataset!.previewRows.length} строк — так backend видит ваш CSV
-              после загрузки.
-            </p>
-
             <div
               className="table-wrapper"
               style={{
@@ -318,7 +313,7 @@ const AnalyzePage: React.FC = () => {
                 <table className="table">
                   <thead>
                     <tr>
-                      <th style={{ width: 40 }}>#</th>
+                      <th style={{ width: 60 }}>ID</th>
                       <th>Текст</th>
                       <th style={{ width: 140 }}>Источник (src)</th>
                       <th style={{ width: 80 }}>Label</th>
@@ -327,7 +322,9 @@ const AnalyzePage: React.FC = () => {
                   <tbody>
                     {rawDataset!.previewRows.map((row, idx) => (
                       <tr key={idx}>
-                        <td className="text-muted">{idx + 1}</td>
+                        <td className="text-muted">
+                          {row.id ?? idx + 1}
+                        </td>
                         <td>
                           <div className="text-ellipsis">{row.text}</div>
                         </td>
@@ -357,10 +354,6 @@ const AnalyzePage: React.FC = () => {
           {/* Статус задачи + переход к результатам */}
           <section className="chart-card">
             <h3>Статус пайплайна</h3>
-            <p className="chart-description">
-              Здесь видно, как продвигается задача анализа тональности для загруженного датасета.
-            </p>
-
             <div style={{ fontSize: 13, display: 'grid', gap: 6 }}>
               {job ? (
                 <>

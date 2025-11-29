@@ -62,7 +62,7 @@ const SettingsPage: React.FC = () => {
   const isLightTheme = settings.theme === 'light';
 
   // безопасный бэкенд (на случай старых сохранённых настроек)
-  const backend = settings.backend ?? { host: 'localhost', port: 8000 };
+  const backend = settings.backend ?? { host: '5.129.212.83', port: 51000 };
 
   // аккуратно приводим labelMapping к нормальному виду
   const currentLabelMapping: Record<LabelCode, LabelMeaning> = useMemo(() => {
@@ -137,7 +137,7 @@ const SettingsPage: React.FC = () => {
       : 'http://<host>:<port>';
 
   return (
-    <div style={{ height: '100%', overflow: 'auto', paddingBottom: 16 }}>
+    <div style={{ height: '90vh', overflow: 'auto', paddingBottom: 16 }}>
       <div style={{ marginBottom: 10 }}>
         <div className="page-header-title">Настройки</div>
         <div className="page-header-subtitle">
@@ -467,7 +467,7 @@ const SettingsPage: React.FC = () => {
                 type="text"
                 value={backend.host}
                 onChange={handleBackendHostChange}
-                placeholder="localhost"
+                placeholder="5.129.212.83"
                 style={{ marginTop: 4, width: '100%' }}
               />
             </label>
@@ -479,52 +479,10 @@ const SettingsPage: React.FC = () => {
                 max={65535}
                 value={backend.port || ''}
                 onChange={handleBackendPortChange}
-                placeholder="8000"
+                placeholder="51000"
                 style={{ marginTop: 4, width: '100%' }}
               />
             </label>
-          </div>
-
-          <div
-            style={{
-              borderRadius: 14,
-              padding: '8px 10px',
-              background: isLightTheme ? '#ffffff' : 'var(--tesa-surface-soft)',
-              border: '1px solid var(--tesa-border-subtle)',
-              boxShadow: isLightTheme
-                ? '0 6px 14px rgba(15,23,42,0.08)'
-                : '0 8px 18px rgba(15,23,42,0.75)',
-              fontSize: 12,
-            }}
-          >
-            <div className="text-muted" style={{ marginBottom: 4 }}>
-              Текущий базовый URL :
-            </div>
-            <div
-              style={{
-                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                fontSize: 12,
-                wordBreak: 'break-all',
-              }}
-            >
-              {baseUrl}/…
-            </div>
-
-            <div className="text-muted" style={{ marginTop: 8, fontSize: 11 }}>
-              Примеры эндпоинтов :
-            </div>
-            <ul
-              style={{
-                margin: '4px 0 0',
-                paddingLeft: 16,
-                fontSize: 11,
-                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-              }}
-            >
-              <li>{baseUrl}/api/analyze</li>
-              <li>{baseUrl}/api/results</li>
-              <li>{baseUrl}/api/metrics</li>
-            </ul>
           </div>
         </div>
       </section>

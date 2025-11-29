@@ -1,7 +1,9 @@
+// src/types/sentiment.ts
+
 export type SentimentLabel = 0 | 1 | 2;
 
 export interface ReviewRow {
-  id: string; // локальный ID
+  id: string; // локальный/внешний ID (из CSV или сгенерированный)
   text: string;
   src?: string;
   predictedLabel?: SentimentLabel;
@@ -43,9 +45,10 @@ export interface PreprocessOptions {
   stopwords: boolean;
 }
 
-// Сырые строки после парсинга CSV
+// Сырые строки после парсинга входного CSV
 export interface RawInputRow {
   text: string;
+  id?: string;             // если в CSV есть колонка ID/id — кладём сюда
   src?: string;
-  label?: SentimentLabel;
+  label?: SentimentLabel;  // исходная метка, если есть
 }

@@ -59,10 +59,10 @@ const defaultSettings: AppSettings = {
     1: 'neutral',
     2: 'positive',
   },
-  // дефолтные заглушки для бэка — можешь потом поменять на свои
+  // ДЕФОЛТНО: твой реальный бэкенд
   backend: {
-    host: 'localhost',
-    port: 8000,
+    host: '5.129.212.83',
+    port: 51000,
   },
 };
 
@@ -173,6 +173,6 @@ export const useSettings = (): SettingsContextValue => {
   return ctx;
 };
 
-// опционально: helper для сервисов, чтобы собирать базовый URL
+// helper для сервисов, чтобы собирать базовый URL
 export const buildBackendBaseUrl = (settings: AppSettings): string =>
   `http://${settings.backend.host}:${settings.backend.port}`;

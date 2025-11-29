@@ -1,7 +1,11 @@
 // src/components/ManualAnalysisCard.tsx
 import React, { useState } from 'react';
-import { analyzeTextMock, type ManualAnalysisResult } from '../services/manualAnalysisMock';
 import type { SentimentLabel } from '../types/sentiment';
+import { useSettings } from '../context/SettingsContext';
+import {
+  analyzeText,
+  type ManualAnalysisResult,
+} from '../services/sentimentApi';
 
 const sentimentToText = (label: SentimentLabel) => {
   if (label === 0) return 'Отрицательная';
@@ -16,19 +20,24 @@ const sentimentBadgeClass = (label: SentimentLabel) => {
 };
 
 const ManualAnalysisCard: React.FC = () => {
+  const { settings } = useSettings();
+
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<ManualAnalysisResult[]>([]);
 
-  const handleAnalyze = () => {
-    if (!text.trim()) return;
+  const handleAnalyze = async () => {
+    if (!text.trim() || loading) return;
     setLoading(true);
-
-    setTimeout(() => {
-      const result = analyzeTextMock(text.trim());
+    try {
+      const result = await analyzeText(settings, text.trim());
       setResults((prev) => [result, ...prev].slice(0, 10));
+    } catch (e: any) {
+      console.error(e);
+      alert(e?.message || 'Ошибка запроса к бэкенду');
+    } finally {
       setLoading(false);
-    }, 200);
+    }
   };
 
   const handleClear = () => {
@@ -39,16 +48,11 @@ const ManualAnalysisCard: React.FC = () => {
   return (
     <section className="chart-card" style={{ marginTop: 18 }}>
       <h3>Ручной анализ текста</h3>
-      <p className="chart-description">
-        Вбейте любой текст — backend вернёт JSON с итоговой тональностью, а TESA покажет его в том
-        же формате, что и строки CSV.
-      </p>
-
       <textarea
         rows={3}
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder="Введите отзыв, комментарий или фразу для тестового анализа…"
+        placeholder="Введите отзыв, комментарий или фразу для анализа…"
         style={{
           width: '100%',
           resize: 'vertical',

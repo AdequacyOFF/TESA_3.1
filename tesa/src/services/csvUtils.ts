@@ -8,8 +8,7 @@ import type { LabelMeaning } from '../context/SettingsContext';
 import {
   normalizeLabelMapping,
   conceptLabelToDatasetCode,
-  datasetCodeToConceptLabel,
-  areLabelsEqualByConcept,
+  modelCodeToConceptLabel,
 } from '../utils/labelMapping';
 
 /**
@@ -26,7 +25,6 @@ function parseCsvLine(line: string): string[] {
 
     if (ch === '"') {
       if (inQuotes && line[i + 1] === '"') {
-        // экранированная кавычка ""
         current += '"';
         i++;
       } else {
@@ -65,6 +63,7 @@ function buildRowFromTokens(
  * - text (обязательно)
  * - src (опционально)
  * - label (опционально, 0/1/2)
+ * - ID (опционально, будет проброшен как id)
  */
 export async function parseInputCsv(
   file: File,
@@ -86,6 +85,7 @@ export async function parseInputCsv(
   const idxText = lower.indexOf('text');
   const idxSrc = lower.indexOf('src');
   const idxLabel = lower.indexOf('label');
+  const idxId = lower.indexOf('id'); // колонка ID / id
 
   if (idxText === -1) {
     return { rows: [], totalRows: 0 };
@@ -109,6 +109,8 @@ export async function parseInputCsv(
       idxSrc >= 0 ? (data[headers[idxSrc]]?.trim() ?? '') : '';
     const labelRaw =
       idxLabel >= 0 ? (data[headers[idxLabel]]?.trim() ?? '') : '';
+    const idRaw =
+      idxId >= 0 ? (data[headers[idxId]]?.trim() ?? '') : '';
 
     let label: SentimentLabel | undefined;
     if (labelRaw !== '') {
@@ -118,13 +120,12 @@ export async function parseInputCsv(
       }
     }
 
-    const rowObj = {
-      // если в RawInputRow уже есть id – ок; если нет, лишнее поле не мешает
-      id: String(generatedId++),
+    const rowObj: RawInputRow = {
       text: textVal,
+      id: idRaw || String(generatedId++),
       src: srcVal || undefined,
       label,
-    } as RawInputRow;
+    };
 
     rows.push(rowObj);
   }
@@ -197,93 +198,60 @@ export async function parseValidationCsv(file: File): Promise<ValidationRow[]> {
 }
 
 /**
- * Полный экспорт результатов разметки.
+ * Экспорт результатов разметки (кнопка "Скачать CSV" в сайдбаре).
  *
- * Колонки:
- * - id
- * - src
- * - text
- * - predicted_label        — как вернула модель (0/1/2 = neg/neu/pos)
- * - corrected_label        — ручная правка (если есть)
- * - final_label_concept    — итоговая метка в НОРМАЛИЗОВАННОМ виде (0/1/2 = neg/neu/pos)
- * - final_label_export     — итоговая метка, ПЕРЕПИСАННАЯ под кодировку датасета (mapping)
- * - true_label_raw         — как было в валидационном CSV
- * - true_label_concept     — true-label в нормализованном виде (0/1/2 = neg/neu/pos)
- * - match_by_concept       — 1 если финальная метка совпадает с true по смыслу, 0 иначе
+ * В зависимости от опций формируются колонки:
+ * - ID    — если includeId = true (берётся из CSV-колонки ID, затем из row.id)
+ * - text  — если includeText = true
+ * - label — ВСЕГДА, итоговая метка, переписанная под кодировку датасета (mapping)
  */
 export function exportResultsCsv(
   reviews: ReviewRow[],
   labelMapping?: Record<number, LabelMeaning>,
+  options?: { includeId?: boolean; includeText?: boolean },
 ): void {
   if (!reviews.length) return;
 
   const mapping = normalizeLabelMapping(labelMapping);
+  const includeId = options?.includeId ?? false;
+  const includeText = options?.includeText ?? false;
+
+  const headers: string[] = [];
+  if (includeId) headers.push('ID');
+  if (includeText) headers.push('text');
+  headers.push('label');
 
   const lines: string[] = [];
-  lines.push(
-    [
-      'id',
-      'src',
-      'text',
-      'predicted_label',
-      'corrected_label',
-      'final_label_concept',
-      'final_label_export',
-      'true_label_raw',
-      'true_label_concept',
-      'match_by_concept',
-    ].join(','),
-  );
+  lines.push(headers.join(','));
 
   reviews.forEach((row) => {
-    const predicted = row.predictedLabel as SentimentLabel | undefined;
-    const corrected = row.correctedLabel as SentimentLabel | undefined;
-    const finalConcept = (corrected ?? predicted) as SentimentLabel | undefined;
+    const cols: string[] = [];
 
-    const finalConceptStr =
-      finalConcept === 0 || finalConcept === 1 || finalConcept === 2
-        ? String(finalConcept)
-        : '';
-
-    let finalExportStr = '';
-    if (finalConcept === 0 || finalConcept === 1 || finalConcept === 2) {
-      const datasetCode = conceptLabelToDatasetCode(finalConcept as any, mapping);
-      finalExportStr = String(datasetCode);
+    if (includeId) {
+      const rawId = (row as any).ID ?? row.id ?? '';
+      cols.push(String(rawId));
     }
 
-    const trueLabelRaw = row.trueLabel;
-    const trueConcept = datasetCodeToConceptLabel(
-      typeof trueLabelRaw === 'number' ? trueLabelRaw : null,
-      mapping,
-    );
-    const trueConceptStr =
-      trueConcept === 0 || trueConcept === 1 || trueConcept === 2
-        ? String(trueConcept)
-        : '';
+    if (includeText) {
+      const safeText = '"' + (row.text ?? '').replace(/"/g, '""') + '"';
+      cols.push(safeText);
+    }
 
-    const match = areLabelsEqualByConcept(
-      typeof trueLabelRaw === 'number' ? trueLabelRaw : null,
-      typeof finalConcept === 'number' ? finalConcept : null,
-      mapping,
-    );
+    const baseFinal = row.correctedLabel ?? row.predictedLabel;
+    let labelValue = '';
 
-    const safeText = '"' + (row.text ?? '').replace(/"/g, '""') + '"';
-    const safeSrc = '"' + (row.src ?? '').replace(/"/g, '""') + '"';
+    if (baseFinal === 0 || baseFinal === 1 || baseFinal === 2) {
+      const concept = modelCodeToConceptLabel(baseFinal);
+      const datasetCode =
+        concept != null
+          ? conceptLabelToDatasetCode(concept as any, mapping)
+          : baseFinal;
+      labelValue = String(datasetCode);
+    }
 
-    lines.push(
-      [
-        row.id ?? '',
-        safeSrc,
-        safeText,
-        predicted ?? '',
-        corrected ?? '',
-        finalConceptStr,
-        finalExportStr,
-        trueLabelRaw ?? '',
-        trueConceptStr,
-        match ? '1' : '0',
-      ].join(','),
-    );
+    cols.push(labelValue);
+
+    lines.push(cols.join(','));
   });
 
   const csvContent = lines.join('\n');
