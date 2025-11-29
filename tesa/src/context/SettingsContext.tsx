@@ -174,5 +174,12 @@ export const useSettings = (): SettingsContextValue => {
 };
 
 // helper для сервисов, чтобы собирать базовый URL
-export const buildBackendBaseUrl = (settings: AppSettings): string =>
-  `http://${settings.backend.host}:${settings.backend.port}`;
+export const buildBackendBaseUrl = (settings: AppSettings): string => {
+  // В проде (Netlify) ходим через прокси /api
+  if (import.meta.env.PROD) {
+    return '/api';
+  }
+
+  // Локально — прямой доступ к бэкенду
+  return `http://${settings.backend.host}:${settings.backend.port}`;
+};
