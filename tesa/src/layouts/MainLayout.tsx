@@ -17,7 +17,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           <div className="top-nav-logo">T</div>
           <div>
             <div className="top-nav-title">TESA</div>
-            <div className="top-nav-subtitle">Text Sentiment Analytics</div>
+            <div className="top-nav-subtitle">Text Emotionality Style Analyzer</div>
           </div>
         </div>
 
