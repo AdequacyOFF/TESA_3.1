@@ -131,11 +131,6 @@ const SettingsPage: React.FC = () => {
     } as any);
   };
 
-  const baseUrl =
-    backend.host && backend.port
-      ? `http://${backend.host}:${backend.port}`
-      : 'http://<host>:<port>';
-
   return (
     <div style={{ height: '90vh', overflow: 'auto', paddingBottom: 16 }}>
       <div style={{ marginBottom: 10 }}>
