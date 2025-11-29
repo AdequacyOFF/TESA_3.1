@@ -173,7 +173,7 @@ const MetricsPage: React.FC = () => {
         <div className="page-header-title">Оценка качества (macro-F1)</div>
         <div className="page-header-subtitle">
           Загрузите валидационный CSV с истинными метками{' '}
-          (<code>label</code> обязательно, <code>ID</code> и <code>text</code> — опционально), и
+          (<code>label</code> обязательно, <code>ID</code> или <code>text</code> — опционально, должно быть что-то одно из них), и
           TESA посчитает macro-F1, метрики по классам и confusion matrix для текущих предсказаний.
           Интерпретация кодов меток берётся из настроек сопоставления классов.
         </div>
