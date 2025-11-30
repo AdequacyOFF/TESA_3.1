@@ -173,11 +173,17 @@ export const useSettings = (): SettingsContextValue => {
 
 // helper для сервисов, чтобы собирать базовый URL
 export const buildBackendBaseUrl = (settings: AppSettings): string => {
-  // В проде ходим через прокси /api
-  if (import.meta.env.PROD) {
-    return '/api';
+  // Если фронт крутится на Netlify (tesa-hack.netlify.app и любые *.netlify.app),
+  // то ходим через прокси /api → бэкенд (иначе будет https→http и CORS/mixed content).
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+
+    if (hostname.endsWith('netlify.app')) {
+      return '/api';
+    }
   }
 
-  // Локально — прямой доступ к бэкенду
+  // Во всех остальных случаях (локально, в докере, на другом хостинге)
+  // используем прямой доступ к бэкенду по host+port из настроек.
   return `http://${settings.backend.host}:${settings.backend.port}`;
 };
